@@ -1,0 +1,2 @@
+bucket = "tfstate-create-terraform-impersonate-account-dev"
+prefix = "terraform/state"

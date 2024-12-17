@@ -1,0 +1,56 @@
+# PRマージ時にterraform applyを実行するためのcloud buildの設定ファイル
+# see: https://cloud.google.com/composer/docs/composer-2/dag-cicd-github?hl=ja#builder-yaml-sync
+
+steps:
+  - name: "hashicorp/terraform:light"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        cd terraform/setup/create-terraform-impersonate-account && \
+        terraform init -backend-config=envs/${_ENV}/config.tfbackend -reconfigure && \
+        terraform apply --auto-approve -var="PROJECT_ID=$PROJECT_ID"
+
+  # Run generate_pypi_packages.py to generate the pypi_packages.tfvars file from requirements.txt
+  - name: python
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+        python scripts/generate_pypi_packages.py > terraform/envs/${_ENV}/pypi_packages.tfvars
+
+  # Run Terraform to set up the DEV Cloud Composer environment
+  # DEV Composer environment is usually stopped to save costs
+  - name: "hashicorp/terraform:light"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        cd terraform/envs/${_ENV} && \
+        terraform init && \
+        terraform apply --auto-approve -var-file=pypi_packages.tfvars
+
+  # Run the script to upload the dags to the Cloud Composer bucket
+  - name: python
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+        pip install google-cloud-storage && \
+        python scripts/upload_dags.py --dags_directory=dags --dags_bucket=$PROJECT_ID-composer-dags
+
+  # Destroy Terraform dev environment if on main branch
+  - name: "hashicorp/terraform:light"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        if [ "${_ENV}" = "production" ]; then
+          cd terraform/envs/development && \
+          terraform init && \
+          terraform destroy -target module.cloud-composer.google_composer_environment.composer_env --auto-approve
+        fi
+
+substitutions:
+  _ENV: "development"
+timeout: "10800s"

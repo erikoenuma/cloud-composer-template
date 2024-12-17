@@ -1,0 +1,11 @@
+# terraform
+.terraform
+*.tfvars
+*.tfstate
+*.tfstate.*
+
+composer-local-dev/
+variables.env
+airflow-variables.json
+node_modules
+__pycache__

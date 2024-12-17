@@ -1,0 +1,10 @@
+pytest
+
+# cloud composer環境にはデフォルトで入っているライブラリ
+# dockerを使用したテスト実行時にインストールする必要がある
+google-cloud-bigquery>=3.20.0
+apache-airflow-providers-google
+openlineage-airflow
+apache-beam[gcp]
+apache-airflow-providers-apache-beam==5.7.1
+cloud-storage-mocker==0.3.4

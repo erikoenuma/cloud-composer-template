@@ -1,0 +1,36 @@
+# cloud composerの料金節約のため、毎日の停止と起動を行うためのスクリプトです
+
+steps:
+  - name: "alpine"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        apk update
+
+  # Run Terraform to set up the Cloud Composer environment
+  - name: "gcr.io/cloud-builders/gcloud"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [ "${_ACTION}" = "start" ]; then
+          gcloud builds submit --config=/workspace/cloud-build/deploy-composer.cloudbuild.yaml --substitutions=_ENV=${_ENV}
+        fi
+
+  # Destroy Terraform environment
+  - name: "hashicorp/terraform:light"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        if [ "${_ACTION}" = "stop" ]; then
+          cd /workspace/terraform/envs/${_ENV} && \
+          terraform init && \
+          terraform destroy -target module.cloud-composer.google_composer_environment.composer_env --auto-approve
+        fi
+
+substitutions:
+  _ENV: "production"
+  _ACTION: ""
+timeout: "10800s"

@@ -1,0 +1,33 @@
+# see https://cloud.google.com/composer/docs/composer-2/dag-cicd-github?hl=ja
+
+steps:
+  # Build the Docker image
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "build",
+        "-t",
+        "asia-northeast1-docker.pkg.dev/$PROJECT_ID/airflow-test-repo/composer-airflow-test:latest",
+        ".",
+      ]
+    dir: "/workspace/projects/composer"
+
+  # Push the Docker image to Google Container Registry
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "push",
+        "asia-northeast1-docker.pkg.dev/$PROJECT_ID/airflow-test-repo/composer-airflow-test:latest",
+      ]
+
+  # Run tests using the custom Docker image
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      [
+        "run",
+        "--rm",
+        "asia-northeast1-docker.pkg.dev/$PROJECT_ID/airflow-test-repo/composer-airflow-test:latest",
+        "bash",
+        "-c",
+        "python -m pytest -s /app/dags/tests",
+      ]

@@ -1,0 +1,67 @@
+# PR作成時にTerraformのプランを実行し、ビルド結果のurlをPRにコメントするCloud Buildの設定ファイル
+
+steps:
+  # Run Terraform plan for the impersonation account roles
+  - name: "hashicorp/terraform:light"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        cd /workspace/terraform/setup/create-terraform-impersonate-account && \
+        terraform init -backend-config=envs/${_ENV}/config.tfbackend -reconfigure && \
+        terraform plan -var="PROJECT_ID=$PROJECT_ID" -out=tfplan.out
+        if terraform show -no-color tfplan.out | grep -q "No changes."; then
+          echo "No changes detected"
+        else
+          echo "*****************************************************\nTerraform impersonation account role changes detected\n*****************************************************\n" >> /workspace/plan.txt
+          terraform show -no-color tfplan.out | sed 's/$/\\n/' >> /workspace/plan.txt
+        fi
+
+  # Run generate_pypi_packages.py to generate the pypi_packages.tfvars file from requirements.txt
+  - name: python
+    entrypoint: bash
+    args:
+      - "-c"
+      - |
+        cd /workspace/projects/composer && \
+        python scripts/generate_pypi_packages.py > terraform/envs/${_ENV}/pypi_packages.tfvars
+
+  # Run Terraform plan for the cloud composer and generate a plan file
+  - name: "hashicorp/terraform:light"
+    entrypoint: "sh"
+    args:
+      - "-c"
+      - |
+        cd /workspace/terraform/envs/${_ENV} && \
+        terraform init && \
+        terraform plan -var-file=pypi_packages.tfvars -out=tfplan.out
+        if terraform show -no-color tfplan.out | grep -q "No changes."; then
+          echo "No changes detected"
+        else
+          echo "*****************************************\nTerraform cloud composer changes detected\n*****************************************\n" >> /workspace/plan.txt
+          terraform show -no-color tfplan.out | sed 's/$/\\n/' >> /workspace/plan.txt
+        fi
+
+  # comment on the PR with the plan results
+  - name: "gcr.io/cloud-builders/gcloud"
+    entrypoint: "bash"
+    args:
+      - "-c"
+      - |
+        if [ -f plan.txt ]; then
+          echo -e $(cat plan.txt)
+          build_url="https://console.cloud.google.com/cloud-build/builds;region=global/$BUILD_ID;step=3?project=$PROJECT_ID"
+          curl -H "Authorization: token $$GITHUB_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"body\": \"**ℹ️ Terraform changes has been detected.** Please check the details [here](${build_url})\"}" \
+              "https://api.github.com/repos/$REPO_FULL_NAME/issues/$_PR_NUMBER/comments"
+        fi
+    secretEnv: ["GITHUB_TOKEN"]
+
+substitutions:
+  _ENV: "development"
+
+availableSecrets:
+  secretManager:
+    - versionName: projects/$PROJECT_ID/secrets/github-access-token/versions/latest
+      env: "GITHUB_TOKEN"

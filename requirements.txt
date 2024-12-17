@@ -1,0 +1,10 @@
+# airflowのインストールにpipしか使えないので、requirements.txtを使っています
+# https://airflow.apache.org/docs/apache-airflow/stable/installation/installing-from-pypi.html#installation-tools
+
+apache-airflow-providers-common-sql>=1.3.0
+slack_sdk>=3.0.0
+apache-airflow-providers-slack[common.sql]
+pandas==2.1.4
+google-auth>=2.32.0
+apache-airflow-providers-google>=9.2.0
+google-cloud-storage==2.17.0
